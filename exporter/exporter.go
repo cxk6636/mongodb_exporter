@@ -104,6 +104,13 @@ func (e *Exporter) makeRegistry(ctx context.Context, client *mongo.Client, topol
 	}
 	registry.MustRegister(&gc)
 
+	cli := clientInfoActiveStateCollector{
+		ctx:    ctx,
+		client: client,
+		logger: e.opts.Logger,
+	}
+	registry.MustRegister(&cli)
+
 	if len(e.opts.CollStatsCollections) > 0 {
 		cc := collstatsCollector{
 			ctx:            ctx,
