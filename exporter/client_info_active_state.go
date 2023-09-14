@@ -27,6 +27,7 @@ func (d *clientInfoActiveStateCollector) Collect(ch chan<- prometheus.Metric) {
 		d.logger.Errorf("get client list info for db error: %s", err)
 		return
 	}
+	d.logger.Errorf("client info active data  %s", result)
 
 	inprog, ok := result["inprog"]
 	if !ok {
@@ -40,25 +41,27 @@ func (d *clientInfoActiveStateCollector) Collect(ch chan<- prometheus.Metric) {
 	}
 	for _, elem := range inprogArray {
 		if op, ok := elem.(bson.M); ok {
-			// 获取连接信息中的opid、active、ip字段
-			opid := op["opid"].(int32)
-			var value float64
-			connHost, ok := op["client"].(string)
-			if !ok {
-				connHost = "unknown"
+			if op["client"] != nil {
+				// 获取连接信息中的opid、active、ip字段
+				opid := op["opid"].(int32)
+				var value float64
+				connHost, ok := op["client"].(string)
+				if !ok {
+					connHost = "unknown"
+				}
+				connIP := strings.Split(connHost, ":")[0]
+				//活跃的值是1，不活跃的值的0
+				active := op["active"].(bool)
+				if active {
+					value = 1
+				} else {
+					value = 0
+				}
+				// 定义mongodb_client_list_info指标
+				d := prometheus.NewDesc("mongodb_client_active_state", "The client connection info of MongoDB.", []string{"opid", "ip"}, nil)
+				// 发送指标数据到采集通道中
+				ch <- prometheus.MustNewConstMetric(d, prometheus.GaugeValue, value, strconv.Itoa(int(opid)), connIP)
 			}
-			connIP := strings.Split(connHost, ":")[0]
-			//活跃的值是1，不活跃的值的0
-			active := op["active"].(bool)
-			if active {
-				value = 1
-			} else {
-				value = 0
-			}
-			// 定义mongodb_client_list_info指标
-			d := prometheus.NewDesc("mongodb_client_active_state", "The client connection info of MongoDB.", []string{"opid", "ip"}, nil)
-			// 发送指标数据到采集通道中
-			ch <- prometheus.MustNewConstMetric(d, prometheus.GaugeValue, value, strconv.Itoa(int(opid)), connIP)
 		}
 	}
 }
